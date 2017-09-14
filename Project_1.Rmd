@@ -1,0 +1,182 @@
+---
+title: "Reproducible Research - Project 1"
+author: "Chieh-Ju Lin"
+date: "09/01/2017"
+output: html_document
+---
+
+Load the data and check it
+
+```{r}
+data <- read.csv("activity.csv")
+head(data)
+tail(data)
+str(data)
+```
+
+
+
+* Let's first check some simple plot and statistics
+
+Format the data and calculate the total number of steps taken per day
+
+```{r}
+library(dplyr)
+data_1 <- na.omit(data)
+by_date <- group_by(data_1, date)
+total_steps <- summarise(by_date, sum(steps, na.rm = TRUE))
+names(total_steps) <- c("date", "steps")
+total_steps
+```
+
+Build histogram
+
+```{r}
+library(ggplot2)
+g <- ggplot(total_steps, aes(steps))
+g <- g + geom_histogram(breaks = seq(0, 25000, by = 2000), color = "black")
+g <- g + labs(title = "Histogram of Total Number of Steps per Day", x = "Steps")
+g
+```
+
+The mean of the total number of steps taken per day is:
+
+```{r}
+mean(total_steps$steps)
+```
+
+The median of the total number of steps taken per day is:
+
+```{r}
+median(total_steps$steps)
+```
+
+
+
+* Now, let's check the average daily activity pattern
+
+Format the data
+
+```{r}
+data_2 <- group_by(data, interval)
+by_interval <- summarise(data_2, average_steps = mean(steps, na.rm = TRUE))
+by_interval
+```
+
+Build a time series plot of the 5-minute interval and the average number of steps taken
+
+```{r}
+g <- ggplot(by_interval, aes(interval, average_steps))
+g <- g + geom_line(aes(x = interval, y = average_steps), size = 1)
+g <- g + labs(x = "Interval", y = "Average steps", title = "Average Daily Activity Pattern")
+g
+```
+
+Looks like on average people have highest number of steps during the morning
+
+Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?
+
+```{r}
+by_interval[which.max(by_interval$average_steps), ]
+```
+
+
+
+* Let's handle the missing values
+
+How many missing values in the dayaset?
+
+```{r}
+summary(data)
+sum(is.na(data$steps))
+```
+
+Let's simply use the mean for each 5-minute interval to replace the missing values here and create a new dataset
+
+```{r}
+# Create a new column with average steps by interval
+rep <- rep(by_interval$average_steps, 61)
+data_new <- mutate(data, average_steps = rep)
+
+# Replace NA with average steps using for loop
+for (i in 1:17568){
+        if (is.na(data_new$steps[i]) == TRUE){
+                data_new$steps[i] <- data_new$average_steps[i]
+        }
+}
+
+# Check NAs
+sum(is.na(data_new$steps))
+
+# Drop the new column
+data_new <- data_new[, c(1:3)]
+head(data_new)
+```
+
+Let's make a new histogram for the new dataset
+
+```{r}
+# Group steps by date
+data_3 <- group_by(data_new, date)
+by_date_new <- summarise(data_3, steps = sum(steps))
+head(by_date_new)
+
+# Build histogram
+g <- ggplot(by_date_new, aes(steps))
+g <- g + geom_histogram(breaks = seq(0, 25000, by = 2000), color = "black")
+g <- g + labs(title = "Histogram of Total Number of Steps per Day", x = "Steps")
+g
+```
+
+The mean of the total number of steps taken per day for the new dataset is:
+
+```{r}
+mean(by_date_new$steps)
+```
+
+The median of the total number of steps taken per day for the new dataset is:
+
+```{r}
+median(by_date_new$steps)
+```
+
+As we can see, the mean steps maintain the same, while the median steps increase a little bit  
+  
+  
+  
+* Let's further check if there are differences in activity patterns between weekdays and weekends
+
+We first create a new factor variable in the dataset with two levels ¡V ¡§weekday¡¨ and ¡§weekend¡¨ indicating whether a given date is a weekday or weekend day
+
+```{r}
+head(data_new)
+Sys.setlocale("LC_TIME", "English")
+data_new$day_of_week <- weekdays(as.Date(data_new$date))
+for (i in 1:17568) {
+        if (data_new$day_of_week[i] %in% c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")){
+                data_new$day_of_week[i] <- "Weekday"
+        }
+        else{ 
+                data_new$day_of_week[i] <- "Weekend"
+        }
+}
+table(data_new$day_of_week)
+```
+
+Then let's format the dataset and make a panel plot
+
+```{r}
+# Group the data by day_of_week and interval
+data_4 <- group_by(data_new, day_of_week, interval)
+by_interval_2 <- summarise(data_4, steps = mean(steps))
+head(by_interval_2)
+
+# Make a panel plot containing a time series plot
+g <- ggplot(by_interval_2, aes(x = interval, y = steps))
+g <- g + geom_line(size = 1) + facet_grid(day_of_week~.)
+g <- g + labs(x = "Interval", y = "Average steps", title = "Average Daily Activity Pattern")
+g
+```
+
+During the weekdays, people tend to have the highest number of steps in the morning  
+And during the weekends, the activity pattern have multiple peaks
